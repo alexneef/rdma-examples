@@ -1,6 +1,8 @@
 #ifndef _instrument
 #define _instrument
 
+#include <stdint.h>
+
 typedef struct instrument
 {
 	char Symbol[5];

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "instrument.h"
 #include "RDMAHelpers.h"
