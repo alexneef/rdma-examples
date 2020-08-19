@@ -2,8 +2,8 @@
 #define _RDMAHELPERS
 #include <iostream>
 
-#include <infiniband/verbs.h>
-#include <rdma/rdma_cma.h>
+#include </usr/include/infiniband/verbs.h>
+#include </usr/include/rdma/rdma_cma.h>
 
 using namespace std;
 
@@ -13,7 +13,7 @@ typedef struct MemoryInfo
 	double 	Value;
 } MemoryInfo_t;
 
-#define NUM_OPERATIONS 10000
+#define NUM_OPERATIONS 1000
 
 extern struct rdma_event_channel	*g_CMEventChannel;
 extern struct rdma_cm_id			*g_CMId;

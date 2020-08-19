@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <cstring>
 
 #include "instrument.h"
 #include "RDMAHelpers.h"
@@ -366,7 +367,7 @@ int RDMACreateQP()
 	ret = rdma_create_qp(g_CMId, g_pd, &qp_init_attr);
 	if(ret != 0)
 	{
-		fprintf(stderr, "ERROR - RDMACreateQP: Couldn't Create Queue Pair Error(%d)\n", ret);
+		fprintf(stderr, "ERROR - RDMACreateQP: Couldn't Create Queue Pair Error(%s)\n", strerror(errno));
 		return -1;
 	}
 	return 0;
