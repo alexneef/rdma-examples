@@ -21,20 +21,13 @@ int RDMASubscriberInit();
 int RDMACreateQP();
 void CleanUpSubContext();
 
-//CM Event Channel Handlers
-int OnAddressResolved(struct rdma_cm_event *event);
-int OnMulticastJoin(struct rdma_cm_event *event);
-
 //QP Operations
 ibv_recv_wr* create_RECEIVE_WQE(void* buffer, size_t bufferlen, ibv_mr* bufferMemoryRegion);
 ibv_mr *create_MEMORY_REGION(void* buffer, size_t bufferlen);
 int post_RECEIVE_WQE(ibv_recv_wr* ll_wqe);
 
-
 // Completion Queue Event Handlers
-void OnReceiveUpdate();
-
-void *MonitorCMEventChannel(void* data);
+//void OnReceiveUpdate();
 void *SubscriptionMonitor(void* data);
 
 typedef struct CQContext
@@ -84,8 +77,8 @@ struct SubContext {
 
 	//Memory Regions
 	struct 	ibv_mr                  *MemoryRegion;                            	/* Memory Region Handle */
-	char				*mem;
-	instrument_t			*ins_mlnx;
+	char				            *mem;
+	instrument_t			        *ins_mlnx;
 };
 static struct SubContext g_SubContext;
 
@@ -98,6 +91,10 @@ static bool SIG_KILLCMMONITOR = false;
 int main(int argc,char *argv[], char *envp[])
 {
 
+    int ret;
+    struct rdma_cm_event *CMEvent;
+    rdma_cm_event_type et;
+
 	fprintf(stderr, "a");
 	g_SubContext.mem = (char *)malloc(sizeof(struct ibv_grh) + sizeof(instrument_t));
 	fprintf(stderr, "b");
@@ -105,12 +102,12 @@ int main(int argc,char *argv[], char *envp[])
 	fprintf(stderr, "c");
 
 	//Create the Instrument
-	g_SubContext.ins_mlnx->Symbol[0] = 'M';
-	g_SubContext.ins_mlnx->Symbol[1] = 'L';
-	g_SubContext.ins_mlnx->Symbol[2] = 'N';
-	g_SubContext.ins_mlnx->Symbol[3] = 'X';
+	g_SubContext.ins_mlnx->Symbol[0] = 'N';
+	g_SubContext.ins_mlnx->Symbol[1] = 'V';
+	g_SubContext.ins_mlnx->Symbol[2] = 'D';
+	g_SubContext.ins_mlnx->Symbol[3] = 'A';
 	g_SubContext.ins_mlnx->Symbol[4] = '\0';
-	g_SubContext.ins_mlnx->Value = 1.0;
+	g_SubContext.ins_mlnx->Value = 0;
 
 	int op;
 	while ((op = getopt(argc, argv, "l:m:")) != -1)
@@ -145,16 +142,38 @@ int main(int argc,char *argv[], char *envp[])
 		return 0;
 	}
 
-	/*
-	 * Start Monitoring the CM Event Channel
-	 */
-	int data = 5;
-	pthread_t 				CMEventChannelMonitorThread;
-	fprintf(stderr, "Starting CM Event Monitor ...\n");
-	pthread_create(&CMEventChannelMonitorThread, NULL, MonitorCMEventChannel, (void*) &data);
 
-	//Wait for the Signal that the Channel is Established
-	while(!SIG_SUBSCRIPTIONESTABLISHED) { sleep(5); }
+    /*
+     * Create the QP
+     */
+    ret = RDMACreateQP();
+    if(ret != 0)
+    {
+        fprintf(stderr, "ERROR OnAddressResolved - Couldn't Create QP\n");
+        return -1;
+    }
+
+    ret = rdma_join_multicast(g_SubContext.CMId, g_SubContext.mcastAddr_resolved, NULL);
+    if(ret)
+    {
+        fprintf(stderr, "RDMA multicast join Failed %d\n", ret);
+        return -1;
+    }
+
+
+        ret = rdma_get_cm_event(g_SubContext.CMEventChannel, &CMEvent);
+        if(ret != 0)
+        {
+            fprintf(stderr, "ERROR: No Event Received Time Out\n");
+            return -1;
+        }
+        if(CMEvent->event != RDMA_CM_EVENT_MULTICAST_JOIN)
+        {
+            fprintf(stderr, "Expected Multicast Joint Event\n");
+            return -1;
+        }
+
+
 
 	//Register the Memory Region
 	 g_SubContext.MemoryRegion = create_MEMORY_REGION(g_SubContext.mem, 
@@ -163,10 +182,9 @@ int main(int argc,char *argv[], char *envp[])
 	/*
 	 * Start Monitoring the Completion Queue (CQ) for CQEs
 	 */
+	int data = 5;
 	pthread_t 				CQMonitorThread;
 	pthread_create(&CQMonitorThread, NULL, SubscriptionMonitor, (void *) &data);
-
-
 
 	/*
 	 * Monitor my memory ever second and print the value.
@@ -213,54 +231,7 @@ static int get_addr(char *dst, struct sockaddr *addr)
 	return ret;
 }
 
-/*
- * Monitors the Communication Managers Event Channel.
- *
- * The CM event channel will notify the program when joins or multicast error happen.
- */
-void *MonitorCMEventChannel(void* data)
-{
-	struct rdma_cm_event *event;
-	int ret = 0;
 
-	do {
-		ret = rdma_get_cm_event(g_SubContext.CMEventChannel, &event);
-		if(ret != 0)
-		{
-			fprintf(stderr, "ERROR - MonitorCMEventChannel: Non-Zero Return Code from rdma_get_cm_event.\n");
-		}
-
-		switch(event->event)
-		{
-		case RDMA_CM_EVENT_ADDR_RESOLVED:
-			fprintf(stderr, "Received RDMA_CM_EVENT_ADDR_RESOLVED Event\n");
-			OnAddressResolved(event);
-			break;
-		case RDMA_CM_EVENT_MULTICAST_JOIN:
-			fprintf(stderr, "Received RDMA_CM_EVENT_MULTICAST_JOIN Event\n");
-			OnMulticastJoin(event);
-			break;
-
-		//TODO: Error Cases
-		case RDMA_CM_EVENT_ADDR_ERROR:
-			fprintf(stdout, "Address Resolution Error: event: %s, error: %d\n", rdma_event_str(event->event), event->status);
-			break;
-		case RDMA_CM_EVENT_ROUTE_ERROR:
-			fprintf(stdout, "Route Error: event: %s, error: %d\n", rdma_event_str(event->event), event->status);
-			break;
-		case RDMA_CM_EVENT_MULTICAST_ERROR:
-			fprintf(stdout, "Multicast Error: event: %s, error: %d\n", rdma_event_str(event->event), event->status);
-			break;
-		default:
-			break;
-
-		}
-
-		rdma_ack_cm_event(event);
-	} while(!SIG_KILLCMMONITOR);
-
-	return 0;
-}
 
 /*
  * Subscriber Initilization
@@ -270,6 +241,8 @@ void *MonitorCMEventChannel(void* data)
 int RDMASubscriberInit()
 {
 	int ret = 0;
+    struct rdma_cm_event *CMEvent;
+    rdma_cm_event_type et;
 	g_SubContext.CMEventChannel = NULL;
 	g_SubContext.CMContext = (CMContext_t*) malloc(sizeof(CMContext_t));
 	g_SubContext.CMContext->id = 1;
@@ -317,37 +290,23 @@ int RDMASubscriberInit()
 		fprintf(stderr, "ERROR RDMAServerInit: Couldn't resolve local address and or mcast address.\n");
 	}
 
-	return 0;
-}
+    ret = rdma_get_cm_event(g_SubContext.CMEventChannel, &CMEvent);
+    if(ret != 0)
+    {
+        fprintf(stderr, "ERROR: No Event Received Time Out\n");
+        return -1;
+    }
+    if(CMEvent->event != RDMA_CM_EVENT_ADDR_RESOLVED)
+    {
+        fprintf(stderr, "Expected Multicast Joint Event\n");
+        return -1;
+    }
 
-int OnAddressResolved(struct rdma_cm_event *event)
-{
-	int ret;
-
-	/*
-	 * Get the CM Id from the Event
-	 */
-	g_SubContext.CMId = event->id;
-
-	/*
-	 * Create the QP
-	 */
-	ret = RDMACreateQP();
-	if(ret != 0)
-	{
-		fprintf(stderr, "ERROR OnAddressResolved - Couldn't Create QP\n");
-		return -1;
-	}
-
-	ret = rdma_join_multicast(g_SubContext.CMId, g_SubContext.mcastAddr_resolved, NULL);
-	if(ret != 0)
-	{
-		fprintf(stderr, "ERROR OnAddressResolved - RDMA MC Join Failed %d\n", ret);
-		return -1;
-	}
 
 	return 0;
 }
+
+
 
 int OnMulticastJoin(struct rdma_cm_event *event)
 {
@@ -391,18 +350,8 @@ int RDMACreateQP()
 		return -1;
 	}
 
-	/*
-	 * Create a Completion Channel - Used to Handle CQE in a callback model.
-	 */
-	g_SubContext.CompletionChannel = ibv_create_comp_channel(g_SubContext.CMId->verbs);
-	if(!g_SubContext.CompletionChannel)
-	{
-		fprintf(stderr, "ERROR - RDMACreateQP: Coun'dn't Create a Completion CHannel\n");
-		return -1;
-	}
-
 	/*Create a completion Queue */
-	g_SubContext.CompletionQueue = ibv_create_cq(g_SubContext.CMId->verbs, 10, &cqcontext, g_SubContext.CompletionChannel, 1);
+	g_SubContext.CompletionQueue = ibv_create_cq(g_SubContext.CMId->verbs, 10, &cqcontext, NULL, 1);
 	if(!g_SubContext.CompletionQueue)
 	{
 		fprintf(stderr, "ERROR - RDMACreateQP: Couldn't create completion queue\n");
@@ -444,55 +393,39 @@ void *SubscriptionMonitor(void* data)
 	receiveWQE = create_RECEIVE_WQE(g_SubContext.mem,
 					(sizeof(struct ibv_grh) + sizeof(instrument_t)),
 					g_SubContext.MemoryRegion);
-	do {
+
 	/*
 	 * Post a WQ Element to the Receive Queue for the next message that will come in
 	 */
+    do {
+        //Put it on the Receive Queue
+        ret = post_RECEIVE_WQE(receiveWQE);
+        if (ret != 0) {
+            fprintf(stderr, "ERROR Subscription Monitor - Failed to Post new WQE on Receive Queue.\n");
+        }
 
-		 //Put it on the Receive Queue
-		 ret = post_RECEIVE_WQE(receiveWQE);
-		ret = post_RECEIVE_WQE(receiveWQE);
-		 if(ret != 0)
-		 {
-			 fprintf(stderr, "ERROR Subscription Monitor - Failed to Post new WQE on Receive Queue.\n");
-		 }
+        /*
+         * Wait for a new message from the publisher. We know we got a message becasue a completion will be generated.
+         */
+        //ARM the Completion Channel
+        ibv_req_notify_cq(g_SubContext.CompletionQueue, 1);
 
-		 /*
-		  * Wait for a new message from the publisher. We know we got a message becasue a completion will be generated.
-		  */
-		 //ARM the Completion Channel
-		ibv_req_notify_cq(g_SubContext.CompletionQueue, 1);
+        fprintf(stderr, "Waiting for a Completion to Be Generated... \n");
 
-		fprintf(stderr, "Waiting for a Completion to Be Generated... \n");
+        fprintf(stderr, "Waiting for CQE\n");
+        do {
+            ret = ibv_poll_cq(g_SubContext.CompletionQueue, 1, &wc);
+        } while (ret == 0);
+        fprintf(stderr, "DEBUG: Received %d CQE Elements\n", ret);
+        fprintf(stderr, "DEBUG: WRID(%i)\tStatus(%i)\n", wc.wr_id, wc.status);
 
-		// Get CQ Events Blocks Until we receive CQE's
-		ret = ibv_get_cq_event(g_SubContext.CompletionChannel, &temp_cq, ((void **)&temp_cqContext));
-		if(ret != 0)
-		{
-			fprintf(stderr, "ERROR - MonitorCQ: Blocking call to get CQ events failed\n");
-			sleep(1); // kill time so it doesn't busy loop
-		}
-		fprintf(stderr, "done ibv_get_cq_event %d\n",ret);
+        /*
+         * We can now process the message
+         */
+        OnReceiveUpdate();
+    }while(true);
 
-		// We CAn now Process the events on the Queue
-		ret = ibv_poll_cq(g_SubContext.CompletionQueue, 1, &wc);
-		if(ret <= 0)
-		{
-			fprintf(stderr, "ERROR - MonitorCQ: Couldn't remove events from CQ\n");
-		}
-		fprintf(stderr, "Received %u Completions!\n", ret);
-		fprintf(stderr, "Status (%s)\n", ibv_wc_status_str(wc.status));
-		sleep(1);
 
-		// Polled for the Events we can now Ack them.
-		ibv_ack_cq_events(g_SubContext.CompletionQueue, ret);
-
-		/*
-		 * We can now process the message
-		 */
-		OnReceiveUpdate();
-
-	} while(true);
 }
 
 ibv_recv_wr* create_RECEIVE_WQE(void* buffer, size_t bufferlen, ibv_mr* bufferMemoryRegion)

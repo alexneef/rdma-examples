@@ -8,8 +8,10 @@
 
 #include </usr/include/infiniband/verbs.h>
 #include </usr/include/rdma/rdma_cma.h>
+#include <chrono>
 
 #include "instrument.h"
+
 
 using namespace std;
 
@@ -106,10 +108,10 @@ instrument_t			ins_mlnx;
 int main(int argc,char *argv[], char *envp[])
 {
 	//Create the Instrument
-	ins_mlnx.Symbol[0] = 'M';
-	ins_mlnx.Symbol[1] = 'L';
-	ins_mlnx.Symbol[2] = 'N';
-	ins_mlnx.Symbol[3] = 'X';
+	ins_mlnx.Symbol[0] = 'N';
+	ins_mlnx.Symbol[1] = 'V';
+	ins_mlnx.Symbol[2] = 'D';
+	ins_mlnx.Symbol[3] = 'A';
 	ins_mlnx.Symbol[4] = '\0';
 	ins_mlnx.Value = 1.0;
 
@@ -129,7 +131,7 @@ int main(int argc,char *argv[], char *envp[])
 			return -1;
 		}
 	}
-
+    int timeToRun = 900;
 	g_PubContext.local_addr = (struct sockaddr *)&g_PubContext.local_in;
 	g_PubContext.mcast_addr = (struct sockaddr *)&g_PubContext.mcast_in;
 
@@ -163,22 +165,24 @@ int main(int argc,char *argv[], char *envp[])
 	//Create a Send WQE - Containing the Address
 	ibv_send_wr* sWQE = create_SEND_WQE(&ins_mlnx, sizeof(instrument_t), mr_instrument);
 
-	/*
-	 * Publish an Update every so often
-	 */
-	for(int i=0; i < 10; i++)
-	{
+    chrono::time_point<chrono::system_clock> start;
+    chrono::duration<double> delta;
+
+    start = chrono::system_clock::now();
+    do {
 		//update the instrument
 		ins_mlnx.Value++;
 
 		fprintf(stderr, "Sending Update\n");
+        fprintf(stderr, "NVDA Stock Price @ %f\n", ins_mlnx.Value);
 		//Post the Receive WQE
 		post_SEND_WQE(sWQE);
 
 		PollCQ();
 
 		sleep(5);
-	}
+        delta = chrono::system_clock::now() - start;
+    } while (delta.count() <= timeToRun);
 
 	CleanUpPubContext();
 
