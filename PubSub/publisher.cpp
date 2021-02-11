@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <stdio.h>
+
 #include <iostream>
 #include <pthread.h>
 #include <unistd.h>
@@ -8,12 +11,12 @@
 using namespace std;
 
 //Shared Memory Regions
-instrument_t			ins_mlnx;
+instrument_t			instrument;
 MemoryRegionInfo_t		mri_serverInstrument;
 
 int publish()
 {
-	fprintf(stdout, "MKT UPDATE (%s,%f)\n", ins_mlnx.Symbol, ins_mlnx.Value);
+	fprintf(stdout, "MKT UPDATE (%s,%f)\n", instrument.Symbol, instrument.Value);
 	return 0;
 }
 
@@ -39,12 +42,12 @@ void *MonitorCQ(void* data)
 int main(int argc,char *argv[], char *envp[])
 {
 	//Create the Instrument
-	ins_mlnx.Symbol[0] = 'M';
-	ins_mlnx.Symbol[1] = 'L';
-	ins_mlnx.Symbol[2] = 'N';
-	ins_mlnx.Symbol[3] = 'X';
-	ins_mlnx.Symbol[4] = '\0';
-	ins_mlnx.Value = 0;
+	instrument.Symbol[0] = 'N';
+    instrument.Symbol[1] = 'V';
+    instrument.Symbol[2] = 'D';
+    instrument.Symbol[3] = 'A';
+    instrument.Symbol[4] = '\0';
+    instrument.Value = 0;
 
 	int op;
 	while ((op = getopt(argc, argv, "l:")) != -1)
@@ -74,6 +77,7 @@ int main(int argc,char *argv[], char *envp[])
 
 	fprintf(stdout, "********  ********  ********  ********\n");
 	fprintf(stdout,"MARKET DATA PUBLISHER\n");
+    fprintf(stdout,"Uses an RC Channel to do RDMA_WRITE's to a MARKET DATA SUBSCRIBER\n");
 	fprintf(stderr, "Local IPoIB Address:      %s\n", s_srcAddr);
 	fprintf(stderr, "Subscriber IPoIB Address: %s port(%u)\n", s_dstAddr, n_dstPort);
 	fprintf(stdout, "********  ********  ********  ********\n\n");
@@ -108,7 +112,7 @@ int main(int argc,char *argv[], char *envp[])
 	 */
 	//Register the Memory Regions
 	ibv_mr* mr_asi = create_MEMORY_REGION(&mri_serverInstrument, sizeof(MemoryRegionInfo_t));
-	ibv_mr* mr_instrument = create_MEMORY_REGION(&ins_mlnx, sizeof(instrument_t));
+	ibv_mr* mr_instrument = create_MEMORY_REGION(&instrument, sizeof(instrument_t));
 
 	//Create a Receive WQE
 	ibv_recv_wr* rWQE = create_RECEIVE_WQE(&mri_serverInstrument, sizeof(MemoryRegionInfo_t), mr_asi);
@@ -127,7 +131,7 @@ int main(int argc,char *argv[], char *envp[])
 	 *
 	 */
 	//Create a Send WQE
-	ibv_send_wr* writeWQE = create_WRITE_WQE(&ins_mlnx, sizeof(instrument_t), mr_instrument, mri_serverInstrument.addr, mri_serverInstrument.rkey);
+	ibv_send_wr* writeWQE = create_WRITE_WQE(&instrument, sizeof(instrument_t), mr_instrument, mri_serverInstrument.addr, mri_serverInstrument.rkey);
 
 	/*
 	 * Start Monitoring the Completion Queue (CQ) for CQEs
@@ -143,10 +147,11 @@ int main(int argc,char *argv[], char *envp[])
 	for(int i=0; i < 10000000; i++)
 	{
 		//update the instrument
-		ins_mlnx.Value++;
+		instrument.Value++;
 
 		//Post the Receive WQE
 		post_SEND_WQE(writeWQE);
+		usleep(50);
 	}
 
 	CleanUpQPContext();

@@ -1,4 +1,6 @@
-#include <iostream>
+#include <stdlib.h>
+#include <stdio.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -8,10 +10,9 @@
 
 #include </usr/include/infiniband/verbs.h>
 #include </usr/include/rdma/rdma_cma.h>
-#include <chrono>
+//#include <chrono>
 
 #include "instrument.h"
-
 
 using namespace std;
 
@@ -103,17 +104,17 @@ static bool SIG_KILLCMMONITOR = false;
 ibv_mr* mr_instrument;
 
 //Data Pointed To By Memory Region Struct
-instrument_t			ins_mlnx;
+instrument_t			instrument;
 
 int main(int argc,char *argv[], char *envp[])
 {
 	//Create the Instrument
-	ins_mlnx.Symbol[0] = 'N';
-	ins_mlnx.Symbol[1] = 'V';
-	ins_mlnx.Symbol[2] = 'D';
-	ins_mlnx.Symbol[3] = 'A';
-	ins_mlnx.Symbol[4] = '\0';
-	ins_mlnx.Value = 1.0;
+	instrument.Symbol[0] = 'N';
+    instrument.Symbol[1] = 'V';
+    instrument.Symbol[2] = 'D';
+    instrument.Symbol[3] = 'A';
+    instrument.Symbol[4] = '\0';
+    instrument.Value = 1.0;
 
 	int op;
 	while ((op = getopt(argc, argv, "l:m:")) != -1)
@@ -160,29 +161,30 @@ int main(int argc,char *argv[], char *envp[])
 	while(!SIG_SUBSCRIPTIONESTABLISHED) { sleep(5); }
 
 	//Register the Memory Region
-	mr_instrument = create_MEMORY_REGION(&ins_mlnx, sizeof(instrument_t));
+	mr_instrument = create_MEMORY_REGION(&instrument, sizeof(instrument_t));
 
 	//Create a Send WQE - Containing the Address
-	ibv_send_wr* sWQE = create_SEND_WQE(&ins_mlnx, sizeof(instrument_t), mr_instrument);
+	ibv_send_wr* sWQE = create_SEND_WQE(&instrument, sizeof(instrument_t), mr_instrument);
 
-    chrono::time_point<chrono::system_clock> start;
-    chrono::duration<double> delta;
+    //chrono::time_point<chrono::system_clock> start;
+    //chrono::duration<double> delta;
 
-    start = chrono::system_clock::now();
+    //start = chrono::system_clock::now();
     do {
 		//update the instrument
-		ins_mlnx.Value++;
+		instrument.Value++;
 
 		fprintf(stderr, "Sending Update\n");
-        fprintf(stderr, "NVDA Stock Price @ %f\n", ins_mlnx.Value);
+        fprintf(stderr, "NVDA Stock Price @ %f\n", instrument.Value);
 		//Post the Receive WQE
 		post_SEND_WQE(sWQE);
 
 		PollCQ();
 
 		sleep(5);
-        delta = chrono::system_clock::now() - start;
-    } while (delta.count() <= timeToRun);
+       // delta = chrono::system_clock::now() - start;
+    //} while (delta.count() <= timeToRun);
+} while (1);
 
 	CleanUpPubContext();
 
@@ -208,14 +210,14 @@ int PollCQ()
 
 void PrintUsage()
 {
-	printf("usage: sub [ -l ip ] [-m mcast_ip] \n");
-	printf("\t[-l ip] - bind to the local interface associated with this IPoIB Address.\n");
-	printf("\t[-m ip] - bind to the local interface associated with this IPoIB Address.\n");
+	fprintf(stdout, "usage: sub [ -l ip ] [-m mcast_ip] \n");
+	//printf("\t[-l ip] - bind to the local interface associated with this IPoIB Address.\n");
+	//printf("\t[-m ip] - bind to the local interface associated with this IPoIB Address.\n");
 }
 
 void OnReceiveUpdate()
 {
-	fprintf(stdout, "Received an Update (%s,%f)\n", ins_mlnx.Symbol, ins_mlnx.Value);
+	fprintf(stdout, "Received an Update (%s,%f)\n", instrument.Symbol, instrument.Value);
 	return;
 }
 
@@ -544,7 +546,7 @@ void CleanUpPubContext()
 	{
 		if(rdma_destroy_id(g_PubContext.CMId) != 0)
 		{
-			fprintf(stderr, "CleanUpCMContext: Failed to destroy Connection Manager Id\n");
+			//fprintf(stderr, "CleanUpCMContext: Failed to destroy Connection Manager Id\n");
 		}
 	}
 }

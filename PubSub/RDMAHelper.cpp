@@ -11,7 +11,7 @@
 
 using namespace std;
 
-extern instrument_t 			ins_mlnx;
+extern instrument_t 			instrument;
 
 struct rdma_event_channel		*g_CMEventChannel;
 struct rdma_cm_id				*g_CMId;

@@ -8,7 +8,7 @@
 using namespace std;
 
 //Shared Memory Regions
-instrument_t			ins_mlnx;
+instrument_t			instrument;
 MemoryRegionInfo_t		mri_Instrument;
 
 
@@ -21,12 +21,12 @@ void PrintUsage()
 int main(int argc,char *argv[], char *envp[])
 {
 	//Create the Instrument
-	ins_mlnx.Symbol[0] = 'M';
-	ins_mlnx.Symbol[1] = 'L';
-	ins_mlnx.Symbol[2] = 'N';
-	ins_mlnx.Symbol[3] = 'X';
-	ins_mlnx.Symbol[4] = '\0';
-	ins_mlnx.Value = 1.0;
+	instrument.Symbol[0] = 'M';
+    instrument.Symbol[1] = 'L';
+    instrument.Symbol[2] = 'N';
+    instrument.Symbol[3] = 'X';
+    instrument.Symbol[4] = '\0';
+    instrument.Value = 1.0;
 
 	int op;
 	while ((op = getopt(argc, argv, "l:")) != -1)
@@ -67,7 +67,7 @@ int main(int argc,char *argv[], char *envp[])
 
 	//Register the Memory Region
 	ibv_mr* mr_mrinfo = create_MEMORY_REGION(&mri_Instrument, sizeof(MemoryRegionInfo_t));
-	ibv_mr* mr_instrument = create_MEMORY_REGION(&ins_mlnx, sizeof(instrument_t));
+	ibv_mr* mr_instrument = create_MEMORY_REGION(&instrument, sizeof(instrument_t));
 
 	//Set the address Space Information to the address and rkey from instrument.
 	mri_Instrument.addr = mr_instrument->addr;
@@ -94,11 +94,12 @@ int main(int argc,char *argv[], char *envp[])
 	 * The Publisher has a channel and the key to write to my memory. It will change without me doing anything.
 	 */
 	fprintf(stdout, "********  ********  ********  ********\n");
-	fprintf(stdout,"Displaying MLNX Ticker Value Every Second\n");
+	fprintf(stdout,"Displaying Instrument Value Every Second\n");
 	while(true)
 	{
-		fprintf(stdout, "MKT UPDATE (%s,%f)\n", ins_mlnx.Symbol, ins_mlnx.Value);
-		sleep(1);
+		printf("\rUPDATE (%s,%f)", instrument.Symbol, instrument.Value);
+        fflush(stdout);
+        sleep (1);
 	}
 
 	CleanUpQPContext();

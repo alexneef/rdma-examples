@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <stdio.h>
+
 #include <iostream>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -95,11 +98,9 @@ int main(int argc,char *argv[], char *envp[])
     struct rdma_cm_event *CMEvent;
     rdma_cm_event_type et;
 
-	fprintf(stderr, "a");
+
 	g_SubContext.mem = (char *)malloc(sizeof(struct ibv_grh) + sizeof(instrument_t));
-	fprintf(stderr, "b");
 	g_SubContext.ins_mlnx = (instrument_t *)&g_SubContext.mem[40];
-	fprintf(stderr, "c");
 
 	//Create the Instrument
 	g_SubContext.ins_mlnx->Symbol[0] = 'N';
@@ -130,7 +131,7 @@ int main(int argc,char *argv[], char *envp[])
 	g_SubContext.mcastAddr_resolved = (struct sockaddr *)&g_SubContext.mcastAddr_in;
 
 
-	fprintf(stdout, "********  ********  ********  ********\n");
+	cout << "********  ********  ********  ********" << endl;
 	fprintf(stdout,"MARKET DATA SUBSCRIBER\n");
 	fprintf(stderr, "Local IPoIB Address:      %s\n", g_SubContext.localAddr_string);
 	fprintf(stderr, "Subscribing to Multicast Group:      %s\n", g_SubContext.mcastAddr_string);
@@ -149,14 +150,14 @@ int main(int argc,char *argv[], char *envp[])
     ret = RDMACreateQP();
     if(ret != 0)
     {
-        fprintf(stderr, "ERROR OnAddressResolved - Couldn't Create QP\n");
+       // //fprintf(stderr, "ERROR OnAddressResolved - Couldn't Create QP\n");
         return -1;
     }
 
     ret = rdma_join_multicast(g_SubContext.CMId, g_SubContext.mcastAddr_resolved, NULL);
     if(ret)
     {
-        fprintf(stderr, "RDMA multicast join Failed %d\n", ret);
+       // //fprintf(stderr, "RDMA multicast join Failed %d\n", ret);
         return -1;
     }
 
@@ -164,7 +165,7 @@ int main(int argc,char *argv[], char *envp[])
         ret = rdma_get_cm_event(g_SubContext.CMEventChannel, &CMEvent);
         if(ret != 0)
         {
-            fprintf(stderr, "ERROR: No Event Received Time Out\n");
+           // //fprintf(stderr, "ERROR: No Event Received Time Out\n");
             return -1;
         }
         if(CMEvent->event != RDMA_CM_EVENT_MULTICAST_JOIN)
@@ -194,7 +195,7 @@ int main(int argc,char *argv[], char *envp[])
 	fprintf(stdout,"Displaying MLNX Ticker Value Every Second\n");
 	while(true)
 	{
-		fprintf(stdout, "MKT UPDATE (%s,%f)\n", g_SubContext.ins_mlnx->Symbol, g_SubContext.ins_mlnx->Value);
+		//fprintf(stdout, "MKT UPDATE (%s,%f)\n", g_SubContext.instrument->Symbol, g_SubContext.instrument->Value);
 		sleep(1);
 	}
 
@@ -205,9 +206,9 @@ int main(int argc,char *argv[], char *envp[])
 
 void PrintUsage()
 {
-	printf("usage: sub [ -l ip ] [-m mcast_ip] \n");
-	printf("\t[-l ip] - bind to the local interface associated with this IPoIB Address.\n");
-	printf("\t[-m ip] - bind to the local interface associated with this IPoIB Address.\n");
+	//printf("usage: sub [ -l ip ] [-m mcast_ip] \n");
+	//printf("\t[-l ip] - bind to the local interface associated with this IPoIB Address.\n");
+	//printf("\t[-m ip] - bind to the local interface associated with this IPoIB Address.\n");
 }
 
 void OnReceiveUpdate()
