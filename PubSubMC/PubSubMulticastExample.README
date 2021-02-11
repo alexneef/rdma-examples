@@ -1,0 +1,13 @@
+PubSubMulticastExample
+Covers: UD, Multicast, Asynchronous CM Event processing
+
+You run the Publisher as follows:
+
+>>./pub -l 10.10.10.4 -m 239.1.1.1
+
+Where 10.10.10.4 is the local interface to bind to and 239.1.1.1 is a valid multicast address.
+
+>>./sub -l 10.10.10.7 -m 239.1.1.1
+
+Start one or more subscribers in a similar fashion on one or more machines. 
+

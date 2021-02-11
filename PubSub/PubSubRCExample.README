@@ -1,0 +1,8 @@
+PubSubExample
+Covers: Reliable Connections (RC), RDMA Write
+
+[subscriber] sub -l <local ipoib addr> <remote ipoib addr> 20079
+
+[publisher] pub -l <local ipoib addr> <remote ipoib addr> 20079
+
+*note i hardcoded the port 20079 so don't change this.
