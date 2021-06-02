@@ -477,7 +477,7 @@ ibv_mr *create_MEMORY_REGION(void* buffer, size_t bufferlen)
 	tmpmr = ibv_reg_mr(g_PubContext.ProtectionDomain, buffer, bufferlen, mr_flags);
 	if(!tmpmr)
 	{
-		fprintf(stderr, "ERROR - create_MEMORY_REGION: Couldn't Register memory region\n");
+		fprintf(stderr, "ERROR - createMemoryRegion: Couldn't Register memory region\n");
 		return NULL;
 	}
 

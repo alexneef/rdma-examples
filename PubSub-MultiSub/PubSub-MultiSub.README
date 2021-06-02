@@ -1,0 +1,12 @@
+PubSub-MultiSub
+
+Overview: This example has a single publisher that listens for connections from incoming subscribers. A new Reliable
+Connection (RC) queue pair is established with each subcriber. On a regular interval the publisher will send a new
+message to every subscriber in the list.
+
+Covers: Reliable Connections (RC), RDMA Send, Managing Multiple Connections, threaded listening
+
+[subscriber] sub -l <local ipoib addr> <publisher ipoib addr> <port>
+
+[publisher] pub -l <local ipoib addr> <local port to listen>
+

@@ -90,11 +90,11 @@ int main(int argc,char *argv[], char *envp[])
 	PollCQ();
 
 	/*
-	 * Monitor my memory ever second and print the value.
+	 * Monitor my memory ever second and print the number.
 	 * The Publisher has a channel and the key to write to my memory. It will change without me doing anything.
 	 */
 	fprintf(stdout, "********  ********  ********  ********\n");
-	fprintf(stdout,"Displaying Instrument Value Every Second\n");
+	fprintf(stdout,"Displaying Instrument number Every Second\n");
 	while(true)
 	{
 		printf("\rUPDATE (%s,%f)", instrument.Symbol, instrument.Value);

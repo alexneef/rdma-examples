@@ -188,14 +188,14 @@ int main(int argc,char *argv[], char *envp[])
 	pthread_create(&CQMonitorThread, NULL, SubscriptionMonitor, (void *) &data);
 
 	/*
-	 * Monitor my memory ever second and print the value.
+	 * Monitor my memory ever second and print the number.
 	 * The Publisher has a channel and the key to write to my memory. It will change without me doing anything.
 	 */
 	fprintf(stdout, "\n********  ********  ********  ********\n");
-	fprintf(stdout,"Displaying MLNX Ticker Value Every Second\n");
+	fprintf(stdout,"Displaying MLNX Ticker number Every Second\n");
 	while(true)
 	{
-		//fprintf(stdout, "MKT UPDATE (%s,%f)\n", g_SubContext.instrument->Symbol, g_SubContext.instrument->Value);
+		//fprintf(stdout, "MKT UPDATE (%s,%f)\n", g_SubContext.instrument->Symbol, g_SubContext.instrument->number);
 		sleep(1);
 	}
 
@@ -478,7 +478,7 @@ ibv_mr *create_MEMORY_REGION(void* buffer, size_t bufferlen)
 	tmpmr = ibv_reg_mr(g_SubContext.ProtectionDomain, buffer, bufferlen, mr_flags);
 	if(!tmpmr)
 	{
-		fprintf(stderr, "ERROR - create_MEMORY_REGION: Couldn't Register memory region\n");
+		fprintf(stderr, "ERROR - createMemoryRegion: Couldn't Register memory region\n");
 		return NULL;
 	}
 
