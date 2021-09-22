@@ -146,7 +146,7 @@ int processSub(ConnectionContext_t* c, const char* local_ipoib_address, int port
     qp_init_attr.cap.max_recv_sge = 1;
 
     //Create the QP on the clientside
-    if(0 != rdma_create_qp(c->pcmid,c->pd, &qp_init_attr))
+    if(0 != rdma_create_qp(c->pcmid, c->pd, &qp_init_attr))
     {
         fprintf(stderr, "ERROR(%s): Couldn't Create Queue Pair Error\n", strerror(errno));
         return -1;
@@ -191,13 +191,13 @@ int processSub(ConnectionContext_t* c, const char* local_ipoib_address, int port
 
 void subscriptionHandler()
 {
-    ConnectionContext_t* c;
+    ConnectionContext_t* c = new ConnectionContext();
 
     //Create the Communication Manager id, conceptualy similar to a socket
     if(0 != rdma_create_id(c->CMEventChannel, &c->pcmid, NULL, RDMA_PS_TCP))
     {
         fprintf(stderr, "Failed to Create CM ID");
-        return -1;
+        return;
     }
 
     //Resolve our Local IPoIB Address
@@ -206,6 +206,10 @@ void subscriptionHandler()
         fprintf(stderr, "Failed to Resolve Local Address\n");
         return;
     }
+
+    c->pubAddr.sin_port = htons(LISTEN_PORT);
+
+    print_ipv4(&c->pubAddr);
 
     fprintf(stdout, "Binding and Listening on local address %s %u\n", LOCAL_IP_ADD, LISTEN_PORT);
     if(0 != rdma_bind_addr(c->pcmid, (struct sockaddr*)&c->pubAddr))

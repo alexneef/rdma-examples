@@ -1,7 +1,7 @@
 PubSub-MultiSub
 
 Overview: This example has a single publisher that listens for connections from incoming subscribers. A new Reliable
-Connection (RC) queue pair is established with each subcriber. On a regular interval the publisher will send a new
+Connection (RC) queue pair is established with each subscriber. On a regular interval the publisher will send a new
 message to every subscriber in the list.
 
 Covers: Reliable Connections (RC), RDMA Send, Managing Multiple Connections, threaded listening

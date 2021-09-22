@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <rdma/rdma_cma.h>
+#include <arpa/inet.h>
 
 #define ERROR_MESG_SIZE 100
 
@@ -117,6 +118,18 @@ int GetCMEvent(rdma_event_channel *EC, rdma_cm_event_type* EventType)
 
 	return 0;
 
+}
+
+void print_ipv4(struct sockaddr_in *s)
+{
+    struct sockaddr_in *sin = (struct sockaddr_in *)s;
+    char ip[INET_ADDRSTRLEN];
+    uint16_t port;
+
+    strcpy(ip, (char*)inet_ntoa((struct in_addr)sin->sin_addr));
+    port = htons (sin->sin_port);
+
+    printf ("host %s:%d\n", ip, port);
 }
 
 int get_addr(const char *dst, int port, struct sockaddr_in *addr)
