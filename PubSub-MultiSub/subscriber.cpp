@@ -194,7 +194,7 @@ int main(int argc,char *argv[], char *envp[])
 {
     fprintf(stdout, "********  ********  ********  ********\n");
     fprintf(stdout,"Subscriber - Processor \n");
-    fprintf(stdout,"Uses an UC Channel receive messages from the publisher\n");
+    fprintf(stdout,"Uses an RC Channel receive messages from the publisher\n");
     fprintf(stdout,"\n");
     fprintf(stdout, "********  ********  ********  ********\n\n");
 

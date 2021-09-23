@@ -260,7 +260,7 @@ int main()
 
     fprintf(stdout, "********  ********  ********  ********\n");
     fprintf(stdout,"Publisher \n");
-    fprintf(stdout,"Uses an UC Channel to do Sends\n");
+    fprintf(stdout,"Uses an RC Channel to do Sends\n");
     fprintf(stdout,"Posts an update to all subscribers every 10 seconds\n");
     fprintf(stdout, "********  ********  ********  ********\n\n");
 
