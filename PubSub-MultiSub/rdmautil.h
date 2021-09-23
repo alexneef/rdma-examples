@@ -13,7 +13,7 @@ void PrintCMEvent(struct rdma_cm_event *event);
 
 int GetCMEvent(rdma_event_channel *EC, rdma_cm_event_type* EventType);
 
-void print_ipv4(struct sockaddr_in *s);
+void print_ipv4(sockaddr_in *s);
 
 int get_addr(const char *dst, int port, struct sockaddr_in *addr);
 

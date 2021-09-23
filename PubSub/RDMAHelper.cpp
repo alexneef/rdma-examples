@@ -139,7 +139,8 @@ int post_RECEIVE_WQE(ibv_recv_wr* ll_wqe)
 ibv_mr *create_MEMORY_REGION(void* buffer, size_t bufferlen)
 {
 	ibv_mr* tmpmr = (ibv_mr*)malloc(sizeof(ibv_mr));
-	int mr_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
+	//int mr_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
+    int mr_flags = IBV_ACCESS_LOCAL_WRITE;
 	tmpmr = ibv_reg_mr(g_pd, buffer, bufferlen, mr_flags);
 	if(!tmpmr)
 	{
@@ -354,14 +355,15 @@ int RDMACreateQP()
 	/* create the Queue Pair */
 	memset(&qp_init_attr, 0, sizeof(qp_init_attr));
 
+    fprintf(stderr, "!!!!CREATING QP with UC TRansport\n");
 	qp_init_attr.qp_type = IBV_QPT_RC;
 	qp_init_attr.sq_sig_all = 0;
 	qp_init_attr.send_cq = g_cq;
 	qp_init_attr.recv_cq = g_cq;
-	qp_init_attr.cap.max_send_wr = NUM_OPERATIONS;
+	qp_init_attr.cap.max_send_wr = 1;
 	qp_init_attr.cap.max_recv_wr = NUM_OPERATIONS;
-	qp_init_attr.cap.max_send_sge = 1;
-	qp_init_attr.cap.max_recv_sge = 1;
+	qp_init_attr.cap.max_send_sge = 0;
+	qp_init_attr.cap.max_recv_sge = 0;
 
 
 	ret = rdma_create_qp(g_CMId, g_pd, &qp_init_attr);

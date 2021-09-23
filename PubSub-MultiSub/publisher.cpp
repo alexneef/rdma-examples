@@ -21,8 +21,8 @@ extern int errno ;
 
 #define ERROR_MESG_SIZE 100
 
-#define LOCAL_IP_ADD    "10.10.10.122"
-#define LISTEN_PORT     20080
+#define LOCAL_IP_ADD    "10.10.10.220"
+#define PUBLISHER_PORT     20080
 
 #define QUOTE_COUNT     10              //Number of Quotes in teh library below
 #define NUM_OPERATIONS  100000          //Number of Messages to Send
@@ -40,22 +40,21 @@ const char *quotes[150] = {
 "Do not go where the path may lead, go instead where there is no path and leave a trail. -Ralph Waldo Emerson"
 };
 
-struct PubContext
+typedef struct ConnectionManager
 {
-   struct sockaddr_in6              local_in;
-   struct sockaddr *                local_addr;
-   struct rdma_event_channel *      CMEventChannel;
+    struct rdma_event_channel *      CMEventChannel;
+    struct rdma_cm_id *             pcmid;
+
+    struct sockaddr_in              pubAddr;
+    struct sockaddr_in			    subAddr;
 };
-static struct PubContext g_PubContext;
+static struct ConnectionManager g_ConnectionManager;
 
 typedef struct ConnectionContext
 {
-    struct sockaddr_in              pubAddr;
-    struct sockaddr_in			    subAddr;
-
-    rdma_event_channel *            CMEventChannel;
-
+    struct rdma_event_channel *     CMEventChannel;
     struct rdma_cm_id *             pcmid;
+
     struct ibv_pd *                 pd;
     struct ibv_cq *                 cq;
     struct ibv_mr*                  mr;
@@ -95,15 +94,14 @@ ibv_send_wr* create_Send_WQE(void* buffer, size_t bufferlen, ibv_mr* bufferMemor
     return wqe;
 }
 
-
-int processSub(ConnectionContext_t* c, const char* local_ipoib_address, int port)
+int processSub(ConnectionContext_t* ctx, const char* local_ipoib_address, int port)
 {
     rdma_cm_event_type et;
     struct rdma_cm_event *CMEvent;
 
     do
     {
-        if(0 != rdma_get_cm_event(c->CMEventChannel, & CMEvent))
+        if(0 != rdma_get_cm_event(ctx->CMEventChannel, & CMEvent))
         {
             fprintf(stderr, "ERROR(%s): No Event Received Time Out\n", strerror(errno));
             return -1;
@@ -112,22 +110,26 @@ int processSub(ConnectionContext_t* c, const char* local_ipoib_address, int port
         PrintCMEvent(CMEvent);
     } while(CMEvent->event != RDMA_CM_EVENT_CONNECT_REQUEST);
 
+
     //Get the Connection id from the CMEvent
-    c->pcmid = CMEvent->id;
+    ctx->pcmid = CMEvent->id; //TODO: Is this the same cm channel as we created?
+
+    fprintf(stdout, "Subscription request from new subscriber at ");
+    print_ipv4(&ctx->pcmid->route.addr.src_sin);
 
     //Now that we know we can connect to the other node start creating the RDMA Queues we need
     struct ibv_qp_init_attr qp_init_attr;
     //Create a Protection Domain
-    c->pd = ibv_alloc_pd(c->pcmid->verbs);
-    if(!c->pd)
+    ctx->pd = ibv_alloc_pd(ctx->pcmid->verbs);
+    if(!ctx->pd)
     {
         fprintf(stderr, "ERROR: Couldn't create protection domain\n");
         return -1;
     }
 
     // Create a completion Queue
-    c->cq = ibv_create_cq(c->pcmid->verbs, NUM_OPERATIONS, NULL, NULL, 0);
-    if(!c->cq)
+    ctx->cq = ibv_create_cq(ctx->pcmid->verbs, NUM_OPERATIONS, NULL, NULL, 0);
+    if(!ctx->cq)
     {
         fprintf(stderr, "ERROR: Couldn't create completion queue\n");
         return -1;
@@ -138,31 +140,28 @@ int processSub(ConnectionContext_t* c, const char* local_ipoib_address, int port
 
     qp_init_attr.qp_type = IBV_QPT_RC;
     qp_init_attr.sq_sig_all = 0;
-    qp_init_attr.send_cq = c->cq;
-    qp_init_attr.recv_cq = c->cq;
+    qp_init_attr.send_cq = ctx->cq;
+    qp_init_attr.recv_cq = ctx->cq;
     qp_init_attr.cap.max_send_wr = 2;
     qp_init_attr.cap.max_recv_wr = 2;
     qp_init_attr.cap.max_send_sge = 1;
     qp_init_attr.cap.max_recv_sge = 1;
 
     //Create the QP on the clientside
-    if(0 != rdma_create_qp(c->pcmid, c->pd, &qp_init_attr))
+    if(0 != rdma_create_qp(ctx->pcmid, ctx->pd, &qp_init_attr))
     {
         fprintf(stderr, "ERROR(%s): Couldn't Create Queue Pair Error\n", strerror(errno));
         return -1;
     }
 
     //And finaly Accept the connection request
-
     struct rdma_conn_param ConnectionParams;
     memset(&ConnectionParams, 0, sizeof(ConnectionParams));
-    if(0 != rdma_accept(c->pcmid, &ConnectionParams))
+    if(0 != rdma_accept(ctx->pcmid, &ConnectionParams))
     {
         fprintf(stderr, "Client Couldn't Establish Connection\n");
         return -1;
     }
-
-    fprintf(stdout, "New Subscriber Connected %u\n", c->pcmid->qp->qp_num);
 
     //Release the Event now that we are done with it
     if(0 != rdma_ack_cm_event(CMEvent))
@@ -174,65 +173,71 @@ int processSub(ConnectionContext_t* c, const char* local_ipoib_address, int port
     fprintf(stdout, "Waiting for Connection Established Event ...\n");
     do
     {
-        if(0 != GetCMEvent(c->CMEventChannel, &et))
+        if(0 != GetCMEvent(ctx->CMEventChannel, &et))
         {
             fprintf(stderr, "ERROR Processing CM Events\n");
         }
     } while(et != RDMA_CM_EVENT_ESTABLISHED);
 
 
-    c->mr = createMemoryRegion(c->pd, &m, sizeof(message_t));
-
-
-    c->sendWQE = create_Send_WQE(&m, sizeof(message_t),  c->mr);
+    ctx->mr = createMemoryRegion(ctx->pd, &m, sizeof(message_t));
+    ctx->sendWQE = create_Send_WQE(&m, sizeof(message_t), ctx->mr);
 
     return 0;
 }
 
 void subscriptionHandler()
 {
-    ConnectionContext_t* c = new ConnectionContext();
 
-    //Create the Communication Manager id, conceptualy similar to a socket
-    if(0 != rdma_create_id(c->CMEventChannel, &c->pcmid, NULL, RDMA_PS_TCP))
+    //an event channel for this context that we will assign and use for all our subscribers.
+    g_ConnectionManager.CMEventChannel = rdma_create_event_channel();
+    if(!g_ConnectionManager.CMEventChannel)
+    {
+        fprintf(stderr, "Failed to Open CM Event Channel");
+        return;
+    }
+
+    //Create the Communication Manager id
+    if(0 != rdma_create_id(g_ConnectionManager.CMEventChannel, &g_ConnectionManager.pcmid, NULL, RDMA_PS_TCP))
     {
         fprintf(stderr, "Failed to Create CM ID");
         return;
     }
 
     //Resolve our Local IPoIB Address
-    if(get_addr(LOCAL_IP_ADD, LISTEN_PORT, &c->pubAddr) != 0)
+    if(get_addr(LOCAL_IP_ADD, PUBLISHER_PORT, &g_ConnectionManager.pubAddr) != 0)
     {
         fprintf(stderr, "Failed to Resolve Local Address\n");
         return;
     }
 
-    c->pubAddr.sin_port = htons(LISTEN_PORT);
+    fprintf(stdout, "Starting Subscription listener on ");
+    print_ipv4(&g_ConnectionManager.pubAddr);
 
-    print_ipv4(&c->pubAddr);
-
-    fprintf(stdout, "Binding and Listening on local address %s %u\n", LOCAL_IP_ADD, LISTEN_PORT);
-    if(0 != rdma_bind_addr(c->pcmid, (struct sockaddr*)&c->pubAddr))
+    fprintf(stdout, "Binding and Listening on local address %s %u\n", LOCAL_IP_ADD, PUBLISHER_PORT);
+    if(0 != rdma_bind_addr(g_ConnectionManager.pcmid, (struct sockaddr*)&g_ConnectionManager.pubAddr))
     {
         fprintf(stderr, "ERROR(%s): Couldn't bind to local address\n", strerror(errno));
         return;
     }
 
-    if(0 != rdma_listen(c->pcmid, 10))
+    if(0 != rdma_listen(g_ConnectionManager.pcmid, 10))
     {
         fprintf(stderr, "ERROR(%s): Failed to Start Listener\n", strerror(errno));
         return;
     }
 
-    do {
-        c = new ConnectionContext();
-        c->CMEventChannel = g_PubContext.CMEventChannel;
+   do {
+        ConnectionContext* ctx = new ConnectionContext();
+        ctx->CMEventChannel = g_ConnectionManager.CMEventChannel;
 
-        if (0 != processSub(c, LOCAL_IP_ADD, LISTEN_PORT)) {
+        if (0 != processSub(ctx, LOCAL_IP_ADD, PUBLISHER_PORT)) {
             fprintf(stderr, "ERROR processing new subscriber");
         }
-        vConnections.push_back(c);
-    }while(appExit);
+
+       fprintf(stdout, "New Subscriber Connected %u\n", ctx->pcmid->qp->qp_num);
+       vConnections.push_back(ctx);
+   }while(!appExit);
 }
 
 //-------------------------------------------------------------------
@@ -248,22 +253,14 @@ int Post_Send_WQE(ConnectionContext_t* c, ibv_send_wr* ll_wqe)
 	return 0;
 }
 
-int main(int argc,char *argv[], char *envp[])
+int main()
 {
-    //Create on global event channel that we will assign and use for all our subscribers.
-    g_PubContext.CMEventChannel = rdma_create_event_channel();
-    if(!g_PubContext.CMEventChannel)
-    {
-        fprintf(stderr, "Failed to Open CM Event Channel");
-        return -1;
-    }
-
     //Start our Subscriber handling thread
     std::thread thread(subscriptionHandler);
 
     fprintf(stdout, "********  ********  ********  ********\n");
     fprintf(stdout,"Publisher \n");
-    fprintf(stdout,"Uses an RC Channel to do Sends\n");
+    fprintf(stdout,"Uses an UC Channel to do Sends\n");
     fprintf(stdout,"Posts an update to all subscribers every 10 seconds\n");
     fprintf(stdout, "********  ********  ********  ********\n\n");
 
@@ -281,11 +278,16 @@ int main(int argc,char *argv[], char *envp[])
         sleep(10);
         fprintf(stderr, "Sending Message Number (%i) to %i subscribers\n", i, numSubsInDispatch);
 
+        //Send the Message to all the Subscribers
         for (int j = 0; j < numSubsInDispatch; j++) {
             //Post the WQEs
             Post_Send_WQE(vConnections[j], vConnections[j]->sendWQE);
         }
 
+        //TODO: Need this to avoid some race on the first CQE coming back with error.
+        sleep(1);
+
+        //Verify Everyone Got the Message
         for (int j = 0; j < numSubsInDispatch; j++) {
             fprintf(stderr, "Starting Completion Queue Monitor\n");
             int ret = 0;

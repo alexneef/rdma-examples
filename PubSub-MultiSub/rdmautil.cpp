@@ -120,7 +120,7 @@ int GetCMEvent(rdma_event_channel *EC, rdma_cm_event_type* EventType)
 
 }
 
-void print_ipv4(struct sockaddr_in *s)
+void print_ipv4(sockaddr_in *s)
 {
     struct sockaddr_in *sin = (struct sockaddr_in *)s;
     char ip[INET_ADDRSTRLEN];
